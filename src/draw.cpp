@@ -10,6 +10,10 @@
 
 #include <cmath>
 #include <cstdint>
+
+// std::min with an initialiser list needs this; MSVC pulls it in
+// transitively, GCC does not.
+#include <algorithm>
 #include <vector>
 
 #include "theme.h"
