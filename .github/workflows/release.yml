@@ -120,6 +120,7 @@ jobs:
       - name: Create release and attach assets
         env:
           GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
           TAG: ${{ github.event_name == 'workflow_dispatch'
                     && inputs.tag || github.ref_name }}
         run: |
@@ -141,5 +142,12 @@ jobs:
             echo "Language runners shell out to whatever toolchain is on your PATH."
             echo "A missing compiler surfaces as a non-zero exit in the block output."
           } > "$notes"
-          gh release create "$TAG" dist/* --title "$TAG" --notes-file "$notes" || \
-            gh release upload "$TAG" dist/* --clobber
+          # This job has no checkout, so name the repository explicitly rather
+          # than letting gh infer it from git.
+          if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/* --clobber --repo "$REPO"
+          else
+            gh release create "$TAG" dist/* --repo "$REPO" \
+              --title "$TAG" --notes-file "$notes"
+          fi
+          gh release view "$TAG" --repo "$REPO"
