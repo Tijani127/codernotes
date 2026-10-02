@@ -15,9 +15,11 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install xmake
-        uses: xmake-io/xmake-action@v1
+        uses: xmake-io/github-action-setup-xmake@v1.2.5
         with:
-          version: latest
+          xmake-version: 3.1.1
+          # SFML is a large download; cache it between runs.
+          package-cache: true
 
       - name: Configure
         run: xmake f -y -m release
@@ -35,3 +37,9 @@ jobs:
 
       - name: Frame budget
         run: ./build/windows/x64/release/codernotes.exe --benchmark 150
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: codernotes-windows
+          path: build/windows/x64/release/codernotes.exe
+          if-no-files-found: error
