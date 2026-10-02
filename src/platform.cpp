@@ -1,6 +1,8 @@
 #include "platform.h"
 
 #include <algorithm>
+#include <array>
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
 
@@ -10,6 +12,10 @@
 #include <ShellAPI.h>
 #else
 #include <unistd.h>
+#endif
+
+#if defined(__APPLE__)
+#include <mach-o/dyld.h>
 #endif
 
 namespace platform {
@@ -54,8 +60,11 @@ void openExternal(const std::string& target) {
     const HINSTANCE result =
         ShellExecuteA(nullptr, "open", target.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
     (void)result;
-#else
+#elif defined(__APPLE__)
     std::system(("open \"" + target + "\" >/dev/null 2>&1 &").c_str());
+#else
+    // xdg-open is the Linux equivalent; without it a link click does nothing.
+    std::system(("xdg-open \"" + target + "\" >/dev/null 2>&1 &").c_str());
 #endif
 }
 
@@ -69,9 +78,21 @@ std::filesystem::path executableDirectory() {
         if (!self.empty()) return self;
     }
 #endif
+#if defined(__APPLE__)
+    // macOS has no /proc; ask dyld for the real path instead.
+    std::array<char, 1024> buffer{};
+    std::uint32_t size = static_cast<std::uint32_t>(buffer.size());
+    if (_NSGetExecutablePath(buffer.data(), &size) == 0) {
+        std::error_code resolveError;
+        const std::filesystem::path self =
+            std::filesystem::weakly_canonical(std::filesystem::path(buffer.data()), resolveError);
+        if (!self.empty()) return self.parent_path();
+    }
+#else
     const std::filesystem::path self =
         std::filesystem::canonical(std::filesystem::path("/proc/self/exe"), ec);
     if (!ec && !self.empty()) return self.parent_path();
+#endif
     return std::filesystem::current_path();
 }
 

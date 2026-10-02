@@ -1,0 +1,136 @@
+name: release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to build and attach to (e.g. v0.1.0)'
+        required: true
+        default: v0.1.0
+
+# Only the release job needs to write; give it an explicit token.
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows x64
+            os: windows-latest
+            binary: build/windows/x64/release/codernotes.exe
+            asset: codernotes-windows-x64.zip
+            archive: zip
+          - name: Linux x64
+            os: ubuntu-24.04
+            binary: build/linux/x86_64/release/codernotes
+            asset: codernotes-linux-x64.tar.gz
+            archive: tar
+          - name: macOS arm64
+            os: macos-14
+            binary: build/macos/arm64/release/codernotes
+            asset: codernotes-macos-arm64.tar.gz
+            archive: tar
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install xmake
+        uses: xmake-io/github-action-setup-xmake@v1.2.5
+        with:
+          xmake-version: 3.1.1
+          package-cache: true
+
+      # SFML 3 needs X11, GL and font headers before it will compile.
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            libx11-dev libxrandr-dev libxcursor-dev libxi-dev libfreetype-dev \
+            libudev-dev libgl1-mesa-dev \
+            xvfb
+
+      - name: Configure
+        run: xmake f -y -m release
+
+      - name: Build
+        run: xmake -r
+
+      # The self-test opens a real GL context. Linux runners are headless, so
+      # drive it through Xvfb; macOS runners have a session available.
+      - name: Self test
+        if: runner.os != 'Linux'
+        run: ./${{ matrix.binary }} --selftest
+
+      - name: Self test (headless)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a ./${{ matrix.binary }} --selftest
+
+      - name: Package
+        shell: bash
+        run: |
+          set -euo pipefail
+          stage="stage"
+          rm -rf "$stage"
+          mkdir -p "$stage"
+          cp "${{ matrix.binary }}" "$stage/"
+          cp LICENSE README.md "$stage/"
+          printf '# codernotes\n\nRun the binary from this directory. Notes are created in ./notes.\n' \
+            > "$stage/RUN.txt"
+          if [ "${{ matrix.archive }}" = "zip" ]; then
+            7z a -tzip "${{ matrix.asset }}" "./$stage/*" >/dev/null
+          else
+            tar -czf "${{ matrix.asset }}" -C "$stage" .
+          fi
+          ls -la "${{ matrix.asset }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: ${{ matrix.asset }}
+          if-no-files-found: error
+
+  publish:
+    name: Publish release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Create release and attach assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event_name == 'workflow_dispatch'
+                    && inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          ls -la dist
+          notes="$(mktemp)"
+          {
+            echo "## Downloads"
+            echo
+            echo "| Platform | Asset |"
+            echo "| --- | --- |"
+            echo "| Windows x64 | \`codernotes-windows-x64.zip\` |"
+            echo "| Linux x64 (glibc 2.39, built on Ubuntu 24.04) | \`codernotes-linux-x64.tar.gz\` |"
+            echo "| macOS arm64 (Apple Silicon) | \`codernotes-macos-arm64.tar.gz\` |"
+            echo
+            echo "No installer: unzip or untar, then run \`codernotes\`. It is a single"
+            echo "self-contained binary with SFML linked statically."
+            echo
+            echo "Language runners shell out to whatever toolchain is on your PATH."
+            echo "A missing compiler surfaces as a non-zero exit in the block output."
+          } > "$notes"
+          gh release create "$TAG" dist/* --title "$TAG" --notes-file "$notes" || \
+            gh release upload "$TAG" dist/* --clobber
