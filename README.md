@@ -13,7 +13,7 @@ self-contained executable.
 - **Runnable code blocks** — each fence becomes its own editor with syntax
   highlighting, line numbers, a caret and a `Run` button. Output streams back
   underneath the block with a status pill showing exit code and duration
-- **Runs 18 languages** when the toolchain is on your `PATH`: JavaScript,
+- **Runs 19 languages** when the toolchain is on your `PATH`: JavaScript,
   TypeScript, Python, C, C++, Java, Go, Rust, Ruby, shell, Lua, PowerShell, PHP,
   Swift, Kotlin, Zig, Dart, R and SQL
 - **Plain `.md` files** on disk, autosaved. No database, no proprietary format —
@@ -90,9 +90,10 @@ frame at 1600x900.
   and Consolas / DejaVu Sans Mono, with fallbacks). If none of the candidates
   exist it exits with an error. Metrics therefore differ slightly per machine.
   Dropping `ui.ttf` and `mono.ttf` into `assets/fonts/` overrides this.
-- **Windows is the tested platform.** The macOS and Linux code paths compile in
-  theory — there are font lookups and framework links for both — but have not
-  been exercised.
+- **Windows and Linux are exercised; macOS is not.** All three build in CI and
+  the self-test passes on Windows and Linux. The macOS binary has never been
+  run — GitHub's macOS runners have no window server, so its self-test is
+  skipped there. Treat Apple Silicon as untested.
 - **No IME support.** SFML reports composed text via `TextEntered` but offers no
   input-method composition, so CJK and other IME input will not compose.
 - **Notes are stored next to the working directory** (`notes/`), not under
