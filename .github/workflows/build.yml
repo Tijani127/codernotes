@@ -1,0 +1,37 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  windows:
+    name: Windows (MSVC)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install xmake
+        uses: xmake-io/xmake-action@v1
+        with:
+          version: latest
+
+      - name: Configure
+        run: xmake f -y -m release
+
+      - name: Build
+        run: xmake -r
+
+      # The self-test drives a real GL context, so it needs a desktop session.
+      # GitHub's Windows runners have one.
+      - name: Self test
+        run: ./build/windows/x64/release/codernotes.exe --selftest
+
+      - name: Self test (live window)
+        run: ./build/windows/x64/release/codernotes.exe --selftest-live
+
+      - name: Frame budget
+        run: ./build/windows/x64/release/codernotes.exe --benchmark 150

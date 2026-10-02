@@ -1,0 +1,8 @@
+# Normalise line endings in the repository; check out per platform.
+* text=auto
+
+# Screenshots
+*.png binary
+
+# Build and tooling files that should stay as-is
+xmake.lock binary

@@ -1,0 +1,21 @@
+# Xmake
+.xmake/
+build/
+
+# App data (user notes and the saved theme)
+notes/
+
+# Diagnostics produced by the dev flags
+*.png
+!docs/*.png
+
+# Editors and IDEs
+.vs/
+.vscode/
+.idea/
+*.user
+
+# OS cruft
+.DS_Store
+Thumbs.db
+desktop.ini
