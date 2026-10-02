@@ -34,7 +34,8 @@ jobs:
             archive: tar
           - name: macOS arm64
             os: macos-14
-            binary: build/macos/arm64/release/codernotes
+            # xmake names the platform directory "macosx", not "macos".
+            binary: build/macosx/arm64/release/codernotes
             asset: codernotes-macos-arm64.tar.gz
             archive: tar
 

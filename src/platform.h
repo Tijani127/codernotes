@@ -1,6 +1,7 @@
 #pragma once
 
 #include <SFML/System/Vector2.hpp>
+#include <SFML/Window/WindowHandle.hpp>
 
 #include <filesystem>
 #include <string>
@@ -11,8 +12,9 @@ namespace platform {
 // stretched on scaled displays. Must be called before creating the window.
 void enableDpiAwareness();
 
-// Scale factor of the window (1.0 at 96 DPI, 1.5 at 150%).
-float windowScale(const void* nativeHandle);
+// Scale factor of the window (1.0 at 96 DPI, 1.5 at 150%). Only Windows can
+// report this; elsewhere the caller gets 1.0.
+float windowScale(sf::WindowHandle handle);
 
 // Usable desktop area of the primary monitor, in pixels.
 sf::Vector2u workAreaSize();

@@ -28,16 +28,17 @@ void enableDpiAwareness() {
 #endif
 }
 
-float windowScale(const void* nativeHandle) {
+float windowScale(sf::WindowHandle handle) {
 #if defined(_WIN32)
-    HWND handle = nullptr;
-    static_assert(sizeof(handle) <= sizeof(nativeHandle), "window handle is wider than void*");
-    std::memcpy(&handle, &nativeHandle, sizeof(handle));
-    const UINT dpi = GetDpiForWindow(handle);
+    // sf::WindowHandle is HWND__* here, which is what GetDpiForWindow wants.
+    const HWND window = reinterpret_cast<HWND>(handle);
+    const UINT dpi = GetDpiForWindow(window);
     if (dpi == 0) return 1.f;
     return std::clamp(static_cast<float>(dpi) / 96.f, 1.f, 3.f);
 #else
-    (void)nativeHandle;
+    // X11 exposes no per-monitor DPI query, and macOS scales the backing store
+    // itself, so there is nothing to report.
+    (void)handle;
     return 1.f;
 #endif
 }
