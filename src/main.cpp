@@ -1134,6 +1134,7 @@ int App::selfTest() {
     // coordinates onto themselves, and the editor's scrolled view onto the pane.
     {
         bool identity = true;
+        std::string detail = "5/5 samples round-trip";
         const sf::Vector2u s = window_.getSize();
         const sf::Vector2i samples[] = {{0, 0},
                                         {static_cast<int>(s.x) - 1, 0},
@@ -1142,10 +1143,20 @@ int App::selfTest() {
                                         {static_cast<int>(s.x) - 1, static_cast<int>(s.y) - 1}};
         for (const sf::Vector2i& sample : samples) {
             const sf::Vector2f point(static_cast<float>(sample.x), static_cast<float>(sample.y));
-            if (window_.mapCoordsToPixel(point) != sample) identity = false;
-            if (std::fabs(window_.mapPixelToCoords(sample).x - point.x) > 0.01f) identity = false;
+            const sf::Vector2i toPixel = window_.mapCoordsToPixel(point);
+            const sf::Vector2f toCoord = window_.mapPixelToCoords(sample);
+            const bool off = toPixel != sample ||
+                             std::fabs(toCoord.x - point.x) > 0.01f ||
+                             std::fabs(toCoord.y - point.y) > 0.01f;
+            if (!off) continue;
+            identity = false;
+            detail = "sample (" + std::to_string(sample.x) + "," + std::to_string(sample.y) +
+                     ") -> px (" + std::to_string(toPixel.x) + "," + std::to_string(toPixel.y) +
+                     ") coords (" + std::to_string(toCoord.x) + "," + std::to_string(toCoord.y) +
+                     ")";
+            break;
         }
-        check("window view is 1:1", identity, "");
+        check("window view is 1:1", identity, detail);
 
         const Rect pane = editorRect();
         const sf::View scrolled(sf::Vector2f(static_cast<float>(s.x) * 0.5f,
