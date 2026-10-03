@@ -48,6 +48,21 @@ std::string toLower(std::string_view s) {
     return out;
 }
 
+std::size_t findFold(std::string_view haystack, std::string_view loweredNeedle) {
+    if (loweredNeedle.empty()) return 0;
+    if (loweredNeedle.size() > haystack.size()) return std::string_view::npos;
+    const auto fold = [](char c) {
+        return (c >= 'A' && c <= 'Z') ? static_cast<char>(c - 'A' + 'a') : c;
+    };
+    const std::size_t last = haystack.size() - loweredNeedle.size();
+    for (std::size_t start = 0; start <= last; ++start) {
+        std::size_t i = 0;
+        while (i < loweredNeedle.size() && fold(haystack[start + i]) == loweredNeedle[i]) ++i;
+        if (i == loweredNeedle.size()) return start;
+    }
+    return std::string_view::npos;
+}
+
 std::vector<std::string> splitLines(std::string_view text) {
     std::vector<std::string> lines;
     std::size_t start = 0;

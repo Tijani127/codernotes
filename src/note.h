@@ -10,6 +10,9 @@ struct NoteMeta {
     std::string title;
     std::string preview;
     std::string stamp;
+    // The whole file, kept so the sidebar can search note bodies and show
+    // where a match was. Refreshed on every save of the open note.
+    std::string body;
     bool dirty = false;
 };
 

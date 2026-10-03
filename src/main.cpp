@@ -85,11 +85,38 @@ constexpr float kSidebarSearchTop = 34.f;
 constexpr float kSidebarListGap = 8.f;
 constexpr float kSidebarFooter = 26.f;
 
-// Case-insensitive substring match over a note title.
+// Case-insensitive substring match over a note's title and body. Returns the
+// body offset of the match, or npos when the title matched or nothing did.
+std::size_t bodyMatch(const NoteMeta& meta, const std::string& loweredQuery) {
+    if (loweredQuery.empty()) return 0;
+    if (util::findFold(meta.title, loweredQuery) != std::string_view::npos) return 0;
+    return util::findFold(meta.body, loweredQuery);
+}
+
 bool noteMatches(const NoteMeta& meta, const std::string& query) {
     if (query.empty()) return true;
     const std::string lowered = util::toLower(util::collapseSpaces(query));
-    return util::toLower(meta.title).find(lowered) != std::string::npos;
+    return util::findFold(meta.title, lowered) != std::string_view::npos ||
+           util::findFold(meta.body, lowered) != std::string_view::npos;
+}
+
+// A short line of body text around a match, so a filtered row explains itself.
+// Markdown syntax is stripped so the snippet reads as prose, not source. The
+// caller truncates to the real row width, so the whole line is returned here.
+std::string matchSnippet(const NoteMeta& meta, const std::string& query) {
+    const std::string lowered = util::toLower(util::collapseSpaces(query));
+    const std::size_t offset = bodyMatch(meta, lowered);
+    if (offset == std::string_view::npos || lowered.empty()) return {};
+    // Walk back to the start of the line so the snippet does not begin mid-word.
+    std::size_t start = meta.body.rfind('\n', offset);
+    start = (start == std::string::npos) ? 0 : start + 1;
+    std::size_t end = meta.body.find('\n', offset);
+    if (end == std::string::npos) end = meta.body.size();
+    if (end <= start) return {};
+    std::string line = util::collapseSpaces(md::stripInline(meta.body.substr(start, end - start)));
+    // Skip lines that are only markup, such as a bare fence or an empty rule.
+    if (line.empty() || md::isHeadingStart(line) || line[0] == '`' || line[0] == '#') return {};
+    return line;
 }
 
 class App {
@@ -100,6 +127,9 @@ public:
         std::string screenshotPath;
         std::string runLanguage;
         std::string iconPreviewPath;
+        // Pre-fills the sidebar filter, so a filtered layout can be captured
+        // without driving the keyboard.
+        std::string initialSearch;
         int warmupFrames = 6;
         int benchmarkFrames = 0;
         int profileFrames = 0;
@@ -346,10 +376,13 @@ bool App::saveCurrent() {
         toast(error, true);
         return false;
     }
-    document_.markSaved();
+document_.markSaved();
     meta.dirty = false;
     meta.title = NoteStore::titleFromText(text, meta.id);
     meta.preview.clear();
+    // Keep the search copy in step with the file. `text` is already a full copy
+    // of the note, so this is the cheapest possible place to refresh it.
+    meta.body = text;
     saveTimer_ = 0.0;
     return true;
 }
@@ -843,8 +876,14 @@ void App::drawSidebar(sf::RenderTarget& target) {
         draw::textEllipsized(target, theme::uiFont, title, titleSize,
                              active ? pal.heading : pal.text,
                              {textX, row.top + 9.f, textWidth, titleSize + 6.f}, active);
-        std::string meta2 = util::formatTimestamp(meta.stamp);
+std::string meta2 = util::formatTimestamp(meta.stamp);
         if (meta.dirty) meta2 = "unsaved";
+        // While filtering, the line that matched explains the result far better
+        // than the timestamp, so it takes that slot.
+        if (!searchText_.empty()) {
+            const std::string snippet = matchSnippet(meta, searchText_);
+            if (!snippet.empty()) meta2 = snippet;
+        }
         draw::textEllipsized(target, theme::uiFont, meta2, metaSize, pal.textFaint,
                              {textX, row.top + 30.f, textWidth, metaSize + 6.f});
         if (active && static_cast<std::size_t>(hoveredDelete_) == i) {
@@ -1232,9 +1271,48 @@ int App::selfTest() {
     }
     check("search filters list", visibleNoteCount() == 0 && allVisible > 0,
           "visible=" + std::to_string(visibleNoteCount()) + " of " + std::to_string(allVisible));
-    for (int i = 0; i < 3; ++i) handleKey(sf::Keyboard::Key::Backspace, false, false);
+for (int i = 0; i < 3; ++i) handleKey(sf::Keyboard::Key::Backspace, false, false);
     check("search restores list", visibleNoteCount() == allVisible,
           "visible=" + std::to_string(visibleNoteCount()));
+
+    // A term that appears in no title but in the starter note's body must still
+    // match. "squares" only occurs inside the javascript block.
+    {
+        const std::string term = "squares";
+        bool titleHasIt = false;
+        for (const NoteMeta& meta : store_.notes()) {
+            if (util::findFold(meta.title, util::toLower(term)) != std::string_view::npos) {
+                titleHasIt = true;
+            }
+        }
+        for (const char letter : term) {
+            sf::Event::TextEntered typed{};
+            typed.unicode = static_cast<char32_t>(letter);
+            handleEvent(typed);
+        }
+        check("search reaches note bodies", !titleHasIt && visibleNoteCount() >= 1,
+              "titlesContain=" + std::to_string(titleHasIt ? 1 : 0) +
+                  " visible=" + std::to_string(visibleNoteCount()));
+        check("match yields a snippet",
+              visibleNoteCount() >= 1 && !matchSnippet(store_.notes()[0], term).empty(),
+              "snippet=" + matchSnippet(store_.notes()[0], term));
+        // Case folding has to work on the body too, not just the title.
+        for (int i = 0; i < static_cast<int>(term.size()); ++i) {
+            handleKey(sf::Keyboard::Key::Backspace, false, false);
+        }
+        for (const char letter : term) {
+            sf::Event::TextEntered typed{};
+            typed.unicode = static_cast<char32_t>(std::toupper(static_cast<unsigned char>(letter)));
+            handleEvent(typed);
+        }
+        check("body search ignores case", visibleNoteCount() >= 1,
+              "visible=" + std::to_string(visibleNoteCount()));
+        for (int i = 0; i < static_cast<int>(term.size()); ++i) {
+            handleKey(sf::Keyboard::Key::Backspace, false, false);
+        }
+    }
+    check("search clears fully", searchText_.empty() && visibleNoteCount() == allVisible,
+          "query='" + searchText_ + "' visible=" + std::to_string(visibleNoteCount()));
     handleKey(sf::Keyboard::Key::Escape, false, false);
     check("escape returns to editor", editorFocused_ && searchText_.empty(),
           "editorFocused=" + std::to_string(editorFocused_));
@@ -1369,6 +1447,10 @@ int App::run(const Options& options) {
     }
     openNote(0);
     layout();
+    if (!options.initialSearch.empty()) {
+        searchText_ = options.initialSearch;
+        sidebarScroll_ = 0.f;
+    }
 
     // The taskbar icon, the header mark and the icon preview all come from the
     // same artwork, so this runs once the GL context exists.
@@ -1561,6 +1643,8 @@ int main(int argc, char** argv) {
             options.runLanguage = argv[++i];
         } else if (argument == "--icon" && i + 1 < argc) {
             options.iconPreviewPath = argv[++i];
+        } else if (argument == "--search" && i + 1 < argc) {
+            options.initialSearch = argv[++i];
         } else if (argument == "--test-run" && i + 1 < argc) {
             testRun = argv[++i];
         }

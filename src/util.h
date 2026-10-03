@@ -15,6 +15,12 @@ bool startsWith(std::string_view s, std::string_view prefix);
 bool endsWith(std::string_view s, std::string_view suffix);
 std::string toLower(std::string_view s);
 
+// Case-insensitive substring search that reports where the match starts, so a
+// caller can show the surrounding text. `needle` must already be lowercased.
+// Returns std::string_view::npos when there is no match. Nothing is allocated,
+// which matters because this runs over every note on each keystroke.
+std::size_t findFold(std::string_view haystack, std::string_view loweredNeedle);
+
 std::vector<std::string> splitLines(std::string_view text);
 std::vector<std::string> split(std::string_view text, char separator);
 std::string join(const std::vector<std::string>& parts, std::string_view separator);

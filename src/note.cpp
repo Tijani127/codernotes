@@ -86,6 +86,7 @@ void NoteStore::scan(std::string& error) {
         if (readFile(file, text)) {
             meta.title = titleFromText(text, meta.id);
             meta.preview = previewOf(text);
+            meta.body = std::move(text);
         } else {
             meta.title = meta.id;
         }
@@ -162,6 +163,7 @@ void NoteStore::create(std::string_view starterText) {
     meta.stamp = meta.id;
     meta.title = titleFromText(starterText, "Untitled note");
     meta.preview = previewOf(starterText);
+    meta.body = std::string(starterText);
     std::string error;
     write(meta.id, starterText, error);
     notes_.insert(notes_.begin(), std::move(meta));

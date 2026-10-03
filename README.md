@@ -20,7 +20,8 @@ self-contained executable.
   your notes stay readable without this app
 - **Four themes** (Midnight, Graphite, Nord, Daylight) cycled with
   `Ctrl+Shift+T`; the choice persists between launches
-- **Search** the note list as you type, undo/redo, clipboard, per-monitor DPI
+- **Full-text search** across note titles *and* bodies, with the matching line
+  shown under each result, plus undo/redo, clipboard, per-monitor DPI
   awareness, and a custom-drawn app icon
 
 ![Daylight theme](docs/screenshot-light.png)
@@ -64,6 +65,7 @@ The binary carries a few flags that are useful during development:
 | `--benchmark <n>` / `--profile <n>` | Frame timing |
 | `--test-run <lang>` | Smoke-test a single runner, e.g. `--test-run python` |
 | `--icon <file>` | Write a contact sheet of the app icon at every OS size |
+| `--search <text>` | Pre-fill the sidebar filter, to capture or inspect a filtered layout |
 
 ## How it is put together
 
